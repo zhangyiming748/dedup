@@ -12,14 +12,14 @@ import (
 func SetLog(l string) {
 	log.SetFlags(log.Ltime | log.Lshortfile)
 
-	// 设置全局时区为Asia/Shanghai
+	// 设置全局时区为 Asia/Shanghai
 	location, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		log.Printf("无法加载时区 Asia/Shanghai: %v", err)
 	} else {
 		time.Local = location
 	}
-	// 创建一个用于写入文件的Logger实例
+	// 创建一个用于写入文件的 Logger 实例
 	fileLogger := &lumberjack.Logger{
 		Filename:   l,
 		MaxSize:    1, // MB

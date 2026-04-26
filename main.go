@@ -19,24 +19,24 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "dedup",
 	Short: "查找并删除重复文件",
-	Long: `dedup 是一个用于查找和删除重复文件的命令行工具。
-它会扫描指定目录下的所有文件，通过计算 MD5 哈希值来识别重复文件，
-并可以选择性地删除重复文件。`,
+	Long: `dedup 是一个用于查找和删除重复文件的命令行工具.
+它会扫描指定目录下的所有文件, 通过计算 MD5 哈希值来识别重复文件,
+并可以选择性地删除重复文件.`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		log.Printf("[命令执行] 开始解析命令参数")
 		log.Printf("  原始参数: %v", os.Args)
 		log.Printf("  rootDir 参数值: '%s'", rootDir)
 		log.Printf("  dryRun 参数值: %v", dryRun)
 
-		// 如果没有提供 -d 参数，显示帮助信息
+		// 如果没有提供 -d 参数, 显示帮助信息
 		if rootDir == "" {
-			log.Printf("[警告] 未提供根目录参数 (-d)，显示帮助信息")
+			log.Printf("[警告] 未提供根目录参数 (-d), 显示帮助信息")
 			return cmd.Help()
 		}
 
 		log.Printf("[验证] 参数验证通过")
 		log.Printf("  目标目录: %s", rootDir)
-		log.Printf("  运行模式: %s", map[bool]string{true: "试运行（不删除）", false: "正式运行（会删除）"}[dryRun])
+		log.Printf("  运行模式: %s", map[bool]string{true: "试运行 (不删除)", false: "正式运行 (会删除)"}[dryRun])
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
@@ -52,14 +52,14 @@ var rootCmd = &cobra.Command{
 func init() {
 	// 设置日志
 	util.SetLog("dedup.log")
-	log.Printf("[初始化] 日志系统已启动，日志文件: dedup.log")
+	log.Printf("[初始化] 日志系统已启动, 日志文件: dedup.log")
 
 	// 添加命令行标志
 	rootCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
-	rootCmd.Flags().BoolVarP(&dryRun, "test", "t", false, "试运行模式，只打印不删除")
+	rootCmd.Flags().BoolVarP(&dryRun, "test", "t", false, "试运行模式, 只打印不删除")
 	log.Printf("[初始化] 命令行参数注册完成")
-	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径，默认: (空)")
-	log.Printf("  - test (短参数: -t): 试运行模式，默认: false")
+	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径, 默认: (空)")
+	log.Printf("  - test (短参数: -t): 试运行模式, 默认: false")
 }
 
 func main() {
@@ -78,7 +78,7 @@ func main() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Printf("[错误] 命令执行失败: %v", err)
 		fmt.Println(err)
-		log.Printf("[退出] 程序异常退出，退出码: 1")
+		log.Printf("[退出] 程序异常退出, 退出码: 1")
 		os.Exit(1)
 	}
 
