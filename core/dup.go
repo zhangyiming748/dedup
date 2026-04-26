@@ -3,14 +3,31 @@ package core
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/zhangyiming748/finder"
 )
 
 func Duplicate(root string, dryrun bool) {
+	if !dryrun {
+		fmt.Println("⚠️  警告：当前运行在正式模式下，找到的重复文件会被直接删除！")
+		fmt.Println("确定要继续吗？(y/n)")
+		var confirm string
+		fmt.Scanln(&confirm)
+		confirm = strings.ToLower(confirm)
+		if confirm != "y" {
+			fmt.Println("已取消操作")
+			log.Printf("[取消] 用户取消了去重任务")
+			return
+		}
+		fmt.Println("开始执行去重任务...")
+		fmt.Println()
+	}
+	fmt.Println("")
 	log.Printf("========== 开始去重任务 ==========")
 	log.Printf("根目录: %s", root)
 	log.Printf("试运行模式: %v", dryrun)
