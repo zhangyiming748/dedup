@@ -1,4 +1,4 @@
-package dedup
+package core
 
 import (
 	"crypto/md5"
