@@ -2,7 +2,10 @@ module dedup
 
 go 1.26.2
 
-require github.com/zhangyiming748/finder v0.0.10
+require (
+	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/zhangyiming748/finder v0.0.10
+)
 
 require (
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
