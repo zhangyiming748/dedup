@@ -5,14 +5,14 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"github.com/schollz/progressbar/v3"
+	"github.com/zhangyiming748/finder"
 	"io"
 	"log"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
-
-	"github.com/zhangyiming748/finder"
 )
 
 func Duplicate(root string, dryrun bool) {
@@ -45,12 +45,13 @@ func Duplicate(root string, dryrun bool) {
 
 	folders := finder.FindAllFolders(root)
 	log.Printf("找到 %d 个文件夹", len(folders))
-
+	bar := progressbar.New(len(folders))
 	for i, folder := range folders {
 		log.Printf("[%d/%d] 处理文件夹: %s", i+1, len(folders), folder)
 		duplicate(folder, dryrun)
+		bar.Add(1)
 	}
-
+	bar.Finish()
 	log.Printf("========== 去重任务完成 ==========")
 }
 
