@@ -1,4 +1,5 @@
 package util
+
 import (
 	"io"
 	"log"
@@ -7,7 +8,10 @@ import (
 
 	"github.com/zhangyiming748/lumberjack"
 )
+
 func SetLog(l string) {
+	log.SetFlags(log.Ltime | log.Lshortfile)
+
 	// 设置全局时区为Asia/Shanghai
 	location, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
@@ -28,5 +32,4 @@ func SetLog(l string) {
 	}
 	consoleLogger := log.New(os.Stdout, "CONSOLE: ", log.LstdFlags)
 	log.SetOutput(io.MultiWriter(fileLogger, consoleLogger.Writer()))
-	log.SetFlags(log.Ltime | log.Lshortfile)
 }

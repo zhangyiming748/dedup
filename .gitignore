@@ -3,4 +3,5 @@
 .vscode
 .lingma
 dedup.exe
-dedup.log
+dedup
+*.log
