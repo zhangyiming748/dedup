@@ -29,13 +29,15 @@ func duplicate(folder string, dryrun bool) {
 		log.Printf("MD5: %s\n", md5Hash)
 
 		if v, ok := dupMap[md5Hash]; ok {
+			// MD5 已存在，说明是重复文件
 			log.Printf("Duplicate found: %s and %s\n", v, fp)
 			if !dryrun {
 				log.Println("Deleting file:", fp)
 				os.Remove(fp)
-			} else {
-				dupMap[md5Hash] = fp
 			}
+		} else {
+			// MD5 不存在，记录这个文件
+			dupMap[md5Hash] = fp
 		}
 	}
 }
