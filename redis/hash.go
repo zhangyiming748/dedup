@@ -5,6 +5,12 @@ func HashSet(key string, field string, value interface{}) error {
 	return Rdb.HSet(Ctx, key, field, value).Err()
 }
 
+// HSetNX 只在字段不存在时设置值
+// 返回: inserted (是否是新插入), error
+func HSetNX(key string, field string, value interface{}) (bool, error) {
+	return Rdb.HSetNX(Ctx, key, field, value).Result()
+}
+
 // HashGet 获取哈希字段的值
 func HashGet(key string, field string) (string, error) {
 	return Rdb.HGet(Ctx, key, field).Result()

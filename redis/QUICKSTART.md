@@ -15,6 +15,12 @@ docker ps | grep redis
 docker-compose logs -f redis
 ```
 
+**配置说明：**
+- Redis 使用 `redis.conf` 配置文件（位于项目根目录）
+- 配置文件已挂载到容器：`./redis.conf:/usr/local/etc/redis/redis.conf:ro`
+- 数据持久化目录：`./redis-data`
+- 详细配置说明见：[REDIS_CONFIG_GUIDE.md](../REDIS_CONFIG_GUIDE.md)
+
 ### 第二步：测试连接
 
 ```bash
