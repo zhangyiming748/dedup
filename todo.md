@@ -1,0 +1,10 @@
+我现在有一个新的思路
+golang负责记录文件名和md5
+每个文件名对应一个md5
+计算完每一个文件按照key value的形式上传到redis作为hash结构
+使用HSET命令: HSET file_hashes <md5_hash> <file_path>
+由于HSET的特性是当field已存在时返回0，表示该哈希值已经出现过
+所以哈希作为hash的field，文件路径作为hash的value
+找到的文件直接算好哈希值往里怼，HSET返回0就说明文件重复，直接就删除
+这样复杂度就是on
+方便快捷 简单粗暴
