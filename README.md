@@ -215,18 +215,23 @@ dedup [flags]
 
 ⚠️ **重要提示**:
 
-1. **首次使用请务必使用 `-t` 试运行模式**, 确认要删除的文件无误后再正式执行
-2. 程序会**永久删除**重复文件, 且**无法恢复**, 请确保有备份
-3. 保留的是**第一个扫描到的文件**, 删除的是后续发现的重复文件
-4. 对于无法读取的文件 (权限不足、被占用等), 程序会跳过并记录错误
-5. 日志文件会自动轮转, 最大 1MB, 保留最近 28 天的备份
+1. **必须先启动 Redis**: 运行前请执行 `docker-compose up -d` 启动 Redis 服务
+2. **首次使用请务必使用 `-t` 试运行模式**, 确认要删除的文件无误后再正式执行
+3. 程序会**永久删除**重复文件，且**无法恢复**，请确保有备份
+4. 保留的是**第一个扫描到的文件**，删除的是后续发现的重复文件
+5. 对于无法读取的文件 (权限不足、被占用等)，程序会跳过并记录错误
+6. 日志文件会自动轮转，最大 1MB，保留最近 28 天的备份
+7. Redis 数据持久化在 `./redis-data` 目录，建议定期备份
 
 ## 技术栈
 
 - **语言**: Go 1.26.2
 - **CLI 框架**: [Cobra](https://github.com/spf13/cobra) - 强大的命令行工具库
+- **Redis 客户端**: [go-redis/v9](https://github.com/redis/go-redis) - Redis Go 客户端
 - **文件查找**: [finder](https://github.com/zhangyiming748/finder) - 文件和文件夹查找工具
+- **哈希算法**: [xxhash/v2](https://github.com/cespare/xxhash) - 高性能 XXH3 哈希
 - **日志轮转**: [lumberjack](https://github.com/zhangyiming748/lumberjack) - 日志文件管理
+- **进度条**: [progressbar/v3](https://github.com/schollz/progressbar) - 终端进度条
 
 ## 项目结构
 
@@ -234,10 +239,24 @@ dedup [flags]
 dedup/
 ├── main.go              # CLI 入口, Cobra 命令定义
 ├── core/
-│   ├── dup.go           # 核心去重逻辑
-│   └── dup_test.go      # 单元测试
+│   └── dup.go           # 核心去重逻辑 (Redis + XXH3)
+├── redis/               # Redis 客户端模块
+│   ├── connect.go       # Redis 连接管理
+│   ├── hash.go          # Hash 操作
+│   ├── string.go        # String 操作
+│   ├── set.go           # Set 操作
+│   ├── sort.go          # List 操作
+│   ├── zset.go          # ZSet 操作
+│   ├── general.go       # 通用操作
+│   ├── file_dedup.go    # 文件去重专用函数
+│   ├── redis_test.go    # 单元测试
+│   └── README.md        # Redis 模块文档
 ├── util/
 │   └── log.go           # 日志配置和管理
+├── examples/            # 示例代码
+│   └── redis_dedup_example.go
+├── docker-compose.yml   # Redis Docker 配置
+├── redis.conf           # Redis 配置文件
 ├── go.mod               # Go 模块依赖
 ├── go.sum               # 依赖校验文件
 └── README.md            # 项目文档
@@ -245,10 +264,24 @@ dedup/
 
 ## 开发
 
+### 启动 Redis
+
+```bash
+# 启动 Redis 服务
+docker-compose up -d
+
+# 验证配置
+docker exec -it dedup-redis redis-cli CONFIG GET appendonly
+```
+
 ### 运行测试
 
 ```bash
+# 运行所有测试
 go test ./...
+
+# 运行 Redis 模块测试
+go test ./redis -v
 ```
 
 ### 代码格式化
@@ -256,6 +289,13 @@ go test ./...
 ```bash
 go fmt ./...
 ```
+
+### 相关文档
+
+- **Redis 模块文档**: [redis/README.md](redis/README.md)
+- **快速开始指南**: [redis/QUICKSTART.md](redis/QUICKSTART.md)
+- **配置说明**: [REDIS_CONFIG_GUIDE.md](REDIS_CONFIG_GUIDE.md)
+- **使用示例**: [examples/redis_dedup_example.go](examples/redis_dedup_example.go)
 
 ## 许可证
 
