@@ -168,3 +168,17 @@ func calculateMD5(filePath string) (string, error) {
 	log.Printf("      [完成] MD5 计算完成: %s", md5Result)
 	return md5Result, nil
 }
+
+/*
+我要在这里重新实现一个流程
+实现计算每一个文件的哈希值 相同哈希值的归类到一个hash 
+数据结构的话 我想表达 哈希值是hash的key 文件名是field 文件路径是value
+这样统计完查找重复的文件就能根据hash查到一批相同的文件了
+你觉得该怎么规划
+因为之前的函数直接就删除了
+我想在这里先做一个统计
+也保存到redis数据库
+我已经部署好了127.0.0.1:6379数据库
+你可以拿来测试
+计算md5 的函数我已经写过了 你不要再实现我已经写好的函数了
+*/
