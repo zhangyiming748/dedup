@@ -169,16 +169,116 @@ func calculateMD5(filePath string) (string, error) {
 	return md5Result, nil
 }
 
-/*
-我要在这里重新实现一个流程
-实现计算每一个文件的哈希值 相同哈希值的归类到一个hash 
-数据结构的话 我想表达 哈希值是hash的key 文件名是field 文件路径是value
-这样统计完查找重复的文件就能根据hash查到一批相同的文件了
-你觉得该怎么规划
-因为之前的函数直接就删除了
-我想在这里先做一个统计
-也保存到redis数据库
-我已经部署好了127.0.0.1:6379数据库
-你可以拿来测试
-计算md5 的函数我已经写过了 你不要再实现我已经写好的函数了
-*/
+// ScanAndGroupByHash 扫描目录并将文件按哈希值分组存储到 Redis
+// 数据结构: Redis Hash - key=哈希值, field=文件名, value=文件完整路径
+// 示例: HSET "abc123" "file1.txt" "/path/to/file1.txt"
+//
+//	HSET "abc123" "file2.txt" "/path/to/file2.txt"
+//
+// 参数:
+//   - root: 要扫描的根目录路径
+//   - useXXH3: true=使用XXH3算法, false=使用MD5算法
+//
+// 注意: 调用此函数前需要先调用 redis.InitRedis() 初始化连接
+func ScanAndGroupByHash(root string, useXXH3 bool) error {
+	fmt.Println("========== 开始扫描并分组存储到 Redis ==========")
+	fmt.Printf("根目录: %s\n", root)
+	fmt.Printf("哈希算法: %s\n", map[bool]string{true: "XXH3", false: "MD5"}[useXXH3])
+
+	// 步骤1: 获取所有文件
+	fmt.Println("正在扫描文件，请稍候...")
+	allPaths := finder.FindAllFiles(root)
+
+	// 过滤掉目录，只保留文件
+	var fps []string
+	for _, path := range allPaths {
+		info, err := os.Stat(path)
+		if err != nil {
+			log.Printf("[警告] 无法获取文件信息: %s - %v", path, err)
+			continue
+		}
+		if !info.IsDir() {
+			fps = append(fps, path)
+		}
+	}
+
+	fmt.Printf("✓ 扫描完成，找到 %d 个文件\n\n", len(fps))
+
+	if len(fps) == 0 {
+		fmt.Println("没有找到任何文件")
+		return nil
+	}
+
+	bar := progressbar.New(len(fps))
+
+	// 步骤2: 遍历所有文件，计算哈希并存储到 Redis
+	processedCount := 0
+	errorCount := 0
+
+	for _, fp := range fps {
+		var hashStr string
+
+		// 计算文件哈希值
+		if useXXH3 {
+			hash, calcErr := calculateXXH3(fp)
+			if calcErr != nil {
+				log.Printf("[错误] 计算文件哈希失败: %s - %v", fp, calcErr)
+				errorCount++
+				bar.Add(1)
+				continue
+			}
+			hashStr = strconv.FormatUint(hash, 10)
+		} else {
+			hash, calcErr := calculateMD5(fp)
+			if calcErr != nil {
+				log.Printf("[错误] 计算文件哈希失败: %s - %v", fp, calcErr)
+				errorCount++
+				bar.Add(1)
+				continue
+			}
+			hashStr = hash
+		}
+
+		// 提取文件名作为 field
+		fileName := fp
+		if idx := len(fp); idx > 0 {
+			for i := idx - 1; i >= 0; i-- {
+				if fp[i] == '/' || fp[i] == '\\' {
+					fileName = fp[i+1:]
+					break
+				}
+			}
+		}
+
+		// 存储到 Redis Hash
+		// Key: 哈希值 (例如 "1234567890")
+		// Field: 文件名 (例如 "photo.jpg")
+		// Value: 完整路径 (例如 "/home/user/photos/photo.jpg")
+		if err := redis.HashSet(hashStr, fileName, fp); err != nil {
+			log.Printf("[错误] Redis 存储失败: %s - %v", fp, err)
+			errorCount++
+			bar.Add(1)
+			continue
+		}
+
+		processedCount++
+		bar.Add(1)
+	}
+
+	bar.Finish()
+	fmt.Println()
+
+	// 输出统计信息
+	fmt.Printf("========== 扫描完成 ==========\n")
+	fmt.Printf("总文件数: %d\n", len(fps))
+	fmt.Printf("成功处理: %d\n", processedCount)
+	fmt.Printf("失败数量: %d\n", errorCount)
+	fmt.Printf("\n数据已存储到 Redis，可以使用以下命令查询:\n")
+	fmt.Printf("  redis-cli HKEYS dupmission          # 查看所有哈希值\n")
+	fmt.Printf("  redis-cli HGETALL <hash_value>      # 查看某个哈希值对应的所有文件\n")
+	fmt.Printf("  redis-cli HLEN <hash_value>         # 查看某个哈希值的文件数量\n")
+
+	log.Printf("[完成] 扫描并存储完成: 总计=%d, 成功=%d, 失败=%d", len(fps), processedCount, errorCount)
+
+	return nil
+}
