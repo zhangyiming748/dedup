@@ -16,12 +16,23 @@ var (
 	dryRun  bool
 )
 
+// rootCmd 是根命令,作为所有子命令的父命令
 var rootCmd = &cobra.Command{
 	Use:   "dedup",
+	Short: "dedup 文件去重工具",
+	Long:  `dedup 是一个用于查找和删除重复文件的命令行工具.`,
+}
+
+// dupCmd 是去重子命令
+var dupCmd = &cobra.Command{
+	Use:   "dup [flags]",
 	Short: "查找并删除重复文件",
-	Long: `dedup 是一个用于查找和删除重复文件的命令行工具.
-它会扫描指定目录下的所有文件, 通过计算 MD5 哈希值来识别重复文件,
-并可以选择性地删除重复文件.`,
+	Long: `dup 命令会扫描指定目录下的所有文件, 通过计算 MD5 哈希值来识别重复文件,
+并可以选择性地删除重复文件.
+
+示例:
+  dedup dup -d /path/to/scan          # 正式模式, 会删除重复文件
+  dedup dup -d /path/to/scan -t       # 试运行模式, 只打印不删除`,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		log.Printf("[命令执行] 开始解析命令参数")
 		log.Printf("  原始参数: %v", os.Args)
@@ -54,12 +65,16 @@ func init() {
 	util.SetLog("dedup.log")
 	log.Printf("[初始化] 日志系统已启动, 日志文件: dedup.log")
 
-	// 添加命令行标志
-	rootCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
-	rootCmd.Flags().BoolVarP(&dryRun, "test", "t", false, "试运行模式, 只打印不删除")
+	// 为 dup 子命令添加命令行标志
+	dupCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
+	dupCmd.Flags().BoolVarP(&dryRun, "test", "t", false, "试运行模式, 只打印不删除")
 	log.Printf("[初始化] 命令行参数注册完成")
 	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径, 默认: (空)")
 	log.Printf("  - test (短参数: -t): 试运行模式, 默认: false")
+
+	// 将 dup 子命令添加到根命令
+	rootCmd.AddCommand(dupCmd)
+	log.Printf("[初始化] 子命令注册完成: dup")
 }
 
 func main() {
