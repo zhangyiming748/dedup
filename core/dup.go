@@ -15,9 +15,12 @@ import (
 	"github.com/zhangyiming748/finder"
 )
 
-func Duplicate(root string,real bool) {
+func Duplicate(root string, real bool) {
 	// 初始化 SQLite
 	sqlite.SetSqlite()
+
+	// 清空数据库（每次运行都是全新的）
+	sqlite.ClearAll()
 
 	// 步骤1: 获取所有文件（可能很耗时，使用 goroutine 显示进度提示）
 	fmt.Println("正在扫描文件，请稍候...")
@@ -70,12 +73,34 @@ func Duplicate(root string,real bool) {
 		}
 		fileSize := fileInfo.Size()
 
-		// 写入 SQLite（不检查是否重复）
-		err = sqlite.AddFile(hash, fp, fileSize)
-		if err != nil {
-			log.Printf("[错误] 写入数据库失败: %s - %v", fp, err)
+		if real {
+			// 真实模式：检查是否重复，如果重复则删除
+			isDuplicate, originalPath, err := sqlite.CheckAndAdd(hash, fp, fileSize)
+			if err != nil {
+				log.Printf("[错误] 数据库操作失败: %s - %v", fp, err)
+				bar.Add(1)
+				continue
+			}
+
+			if isDuplicate {
+				// 发现重复文件，删除当前文件
+				err := os.Remove(fp)
+				if err != nil {
+					log.Printf("[错误] 删除文件失败: %s - %v", fp, err)
+				} else {
+					log.Printf("[删除] 重复文件: %s (原件: %s)", fp, originalPath)
+				}
+			} else {
+				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
+			}
 		} else {
-			log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
+			// 试运行模式：只记录，不检查重复，不删除
+			err = sqlite.AddFile(hash, fp, fileSize)
+			if err != nil {
+				log.Printf("[错误] 写入数据库失败: %s - %v", fp, err)
+			} else {
+				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
+			}
 		}
 
 		bar.Add(1)

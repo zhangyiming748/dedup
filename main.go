@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"dedup/core"
+	"dedup/sqlite"
 	"dedup/util"
 
 	"github.com/spf13/cobra"
@@ -52,11 +53,13 @@ var rootCmd = &cobra.Command{
 func init() {
 	// 设置日志
 	util.SetLog("dedup.log")
+	sqlite.SetSqlite()
+	log.Printf("[初始化] SQLite 数据库已启动")
 	log.Printf("[初始化] 日志系统已启动, 日志文件: dedup.log")
 
 	// 添加命令行标志
 	rootCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
-	rootCmd.Flags().BoolVarP(&dryRun, "test", "t", false, "试运行模式, 只打印不删除")
+	rootCmd.Flags().BoolVarP(&dryRun, "real", "r", false, "试运行模式, 只打印不删除")
 	log.Printf("[初始化] 命令行参数注册完成")
 	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径, 默认: (空)")
 	log.Printf("  - test (短参数: -t): 试运行模式, 默认: false")
