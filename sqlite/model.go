@@ -6,11 +6,11 @@ import (
 
 // FileHash 文件哈希记录表
 type FileHash struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement"`     // 主键ID
-	Hash      string    `gorm:"uniqueIndex;size:64;not null"` // 文件哈希值（XXH3/MD5），唯一索引
-	FilePath  string    `gorm:"size:2048;not null"`           // 文件完整路径
-	FileSize  int64     `gorm:"not null"`                     // 文件大小（字节）
-	CreatedAt time.Time `gorm:"autoCreateTime"`               // 创建时间
+	ID        uint      `gorm:"primaryKey;autoIncrement"` // 主键ID
+	Hash      string    `gorm:"index;size:64;not null"`   // 文件哈希值（XXH3/MD5），普通索引
+	FilePath  string    `gorm:"size:2048;not null"`       // 文件完整路径
+	FileSize  int64     `gorm:"not null"`                 // 文件大小（字节）
+	CreatedAt time.Time `gorm:"autoCreateTime"`           // 创建时间
 }
 
 // TableName 指定表名

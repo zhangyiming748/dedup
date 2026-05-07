@@ -21,6 +21,12 @@ func SetSqlite() {
 		log.Fatalf("打开本地sqlite数据库失败:%s", err.Error())
 	}
 
+	// 删除旧表并重新创建（确保表结构与代码一致）
+	err = db.Migrator().DropTable(&FileHash{})
+	if err != nil {
+		log.Printf("[警告] 删除旧表失败: %v", err)
+	}
+
 	// 自动建表
 	err = db.AutoMigrate(&FileHash{})
 	if err != nil {

@@ -9,3 +9,5 @@ dedup
 # Redis 数据目录（持久化文件）
 redis-data/
 core/duplicate.db
+dedup.exe~
+duplicate.db

@@ -94,10 +94,17 @@ func Duplicate(root string, real bool) {
 				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
 			}
 		} else {
-			// 试运行模式：只记录，不检查重复，不删除
-			err = sqlite.AddFile(hash, fp, fileSize)
+			// 试运行模式：检查是否重复，但不删除，只给出提示
+			isDuplicate, originalPath, err := sqlite.CheckAndAdd(hash, fp, fileSize)
 			if err != nil {
-				log.Printf("[错误] 写入数据库失败: %s - %v", fp, err)
+				log.Printf("[错误] 数据库操作失败: %s - %v", fp, err)
+				bar.Add(1)
+				continue
+			}
+
+			if isDuplicate {
+				// 发现重复文件，但不删除，只记录日志
+				log.Printf("[重复] 发现重复文件: %s (原件: %s)", fp, originalPath)
 			} else {
 				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
 			}
