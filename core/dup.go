@@ -1,20 +1,20 @@
 package core
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 
 	"dedup/sqlite"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/schollz/progressbar/v3"
+	"github.com/zeebo/xxh3"
 	"github.com/zhangyiming748/finder"
 	"gorm.io/gorm"
 )
@@ -124,7 +124,8 @@ func Duplicate(root string) {
 	log.Printf("========== 去重任务完成 ==========")
 }
 
-// calculateXXH3 使用 XXH3 算法计算文件哈希 (比 MD5 快 3-5 倍)
+// calculateXXH3 使用 XXH3 128-bit 算法计算文件哈希
+// 返回 32 字符的 hex 字符串，碰撞概率极低
 func calculateXXH3(filePath string) (string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -132,15 +133,15 @@ func calculateXXH3(filePath string) (string, error) {
 	}
 	defer file.Close()
 
-	hash := xxhash.New()
+	// 使用 XXH3 128-bit，降低碰撞概率
+	hash := xxh3.New128()
 	_, err = io.Copy(hash, file)
 	if err != nil {
 		return "", err
 	}
 
-	// XXH3 返回 uint64，转换为字符串
-	hashValue := hash.Sum64()
-	return strconv.FormatUint(hashValue, 10), nil
+	// 128-bit 输出为 16 bytes，转为 hex 字符串（32 chars）
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // groupFilesBySize 按文件大小分组，只返回有重复大小的文件组

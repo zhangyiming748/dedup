@@ -6,6 +6,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/zhangyiming748/finder v0.0.10
+	github.com/zeebo/xxh3 v1.1.0
 	gorm.io/gorm v1.31.1
 )
 
