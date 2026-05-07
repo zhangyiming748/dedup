@@ -54,13 +54,27 @@ func Duplicate(root string, real bool) {
 
 	log.Printf("✓ 扫描完成，找到 %d 个文件", len(fps))
 
-	bar := progressbar.New(len(fps))
+	// 第一阶段：按文件大小分组（快速筛选）
+	fmt.Println("正在按文件大小分组...")
+	sizeGroups, uniqueCount := groupFilesBySize(fps)
+	log.Printf("✓ 大小分组完成: %d 个唯一大小, %d 个候选重复组", uniqueCount, len(sizeGroups))
+
+	// 统计需要计算哈希的文件数
+	totalHashFiles := 0
+	for _, files := range sizeGroups {
+		totalHashFiles += len(files)
+	}
+	log.Printf("✓ 需要计算哈希的文件: %d / %d (跳过 %d 个唯一大小文件)",
+		totalHashFiles, len(fps), len(fps)-totalHashFiles)
+
+	bar := progressbar.New(totalHashFiles)
+
 	if real {
 		// 真实模式：线性处理，避免幻读和竞态条件
-		processFilesSequential(fps, bar)
+		processFilesSequential(sizeGroups, bar)
 	} else {
 		// 试运行模式：并行处理，提升性能
-		processFilesParallel(fps, bar)
+		processFilesParallel(sizeGroups, bar)
 	}
 
 	bar.Finish()
@@ -93,10 +107,49 @@ func calculateXXH3(filePath string) (string, error) {
 	return strconv.FormatUint(hashValue, 10), nil
 }
 
+// groupFilesBySize 按文件大小分组，只返回有重复大小的文件组
+// 返回: sizeGroups (大小相同的文件组), uniqueCount (唯一大小的数量)
+func groupFilesBySize(fps []string) (map[int64][]string, int) {
+	sizeMap := make(map[int64][]string)
+
+	for _, fp := range fps {
+		fileInfo, err := os.Stat(fp)
+		if err != nil {
+			log.Printf("[警告] 获取文件信息失败: %s - %v", fp, err)
+			continue
+		}
+		size := fileInfo.Size()
+		sizeMap[size] = append(sizeMap[size], fp)
+	}
+
+	// 过滤出只有唯一大小的文件（不可能重复）
+	uniqueCount := 0
+	result := make(map[int64][]string)
+	for size, files := range sizeMap {
+		if len(files) > 1 {
+			// 有多个相同大小的文件，需要进一步检查
+			result[size] = files
+		} else {
+			// 唯一大小，不可能重复，跳过
+			uniqueCount++
+		}
+	}
+
+	return result, uniqueCount
+}
+
 // processFilesSequential 线性处理文件（真实模式）
-func processFilesSequential(fps []string, bar *progressbar.ProgressBar) {
-	for i, fp := range fps {
-		log.Printf("[%d/%d] 处理文件: %s", i+1, len(fps), fp)
+func processFilesSequential(sizeGroups map[int64][]string, bar *progressbar.ProgressBar) {
+	// 将 map 转换为切片，便于遍历
+	var allFiles []string
+	for _, files := range sizeGroups {
+		allFiles = append(allFiles, files...)
+	}
+
+	processed := 0
+	for _, fp := range allFiles {
+		processed++
+		log.Printf("[%d] 处理文件: %s", processed, fp)
 
 		// 计算文件哈希值
 		hash, err := calculateXXH3(fp)
@@ -148,7 +201,13 @@ type fileResult struct {
 }
 
 // processFilesParallel 并行处理文件（试运行模式）
-func processFilesParallel(fps []string, bar *progressbar.ProgressBar) {
+func processFilesParallel(sizeGroups map[int64][]string, bar *progressbar.ProgressBar) {
+	// 将 map 转换为切片，便于分发任务
+	var allFiles []string
+	for _, files := range sizeGroups {
+		allFiles = append(allFiles, files...)
+	}
+
 	// 根据 CPU 核心数确定 worker 数量，最多 8 个
 	numWorkers := runtime.NumCPU()
 	if numWorkers > 8 {
@@ -193,7 +252,7 @@ func processFilesParallel(fps []string, bar *progressbar.ProgressBar) {
 
 	// 启动 goroutine 发送任务
 	go func() {
-		for _, fp := range fps {
+		for _, fp := range allFiles {
 			tasks <- fp
 		}
 		close(tasks)
@@ -209,7 +268,7 @@ func processFilesParallel(fps []string, bar *progressbar.ProgressBar) {
 	processed := 0
 	for result := range results {
 		processed++
-		log.Printf("[%d/%d] 处理文件: %s", processed, len(fps), result.filePath)
+		log.Printf("[%d] 处理文件: %s", processed, result.filePath)
 
 		if result.err != nil {
 			log.Printf("[错误] 处理失败: %s - %v", result.filePath, result.err)
