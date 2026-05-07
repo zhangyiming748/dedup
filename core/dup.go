@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/schollz/progressbar/v3"
 	"github.com/zhangyiming748/finder"
+	"gorm.io/gorm"
 )
 
 func Duplicate(root string) {
@@ -261,9 +263,15 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 		// 尝试写入数据库，如果哈希已存在（唯一索引冲突），则标记为重复
 		err := sqlite.AddFile(result.hash, result.filePath, result.fileSize)
 		if err != nil {
-			// 写入失败，说明是重复文件，加入待删除列表
-			filesToDelete = append(filesToDelete, result.filePath)
-			log.Printf("[重复] 发现重复文件: %s (hash: %s)", result.filePath, result.hash)
+			// 精确判断错误类型：只有唯一索引冲突才是重复文件
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				// 唯一索引冲突，说明是重复文件，加入待删除列表
+				filesToDelete = append(filesToDelete, result.filePath)
+				log.Printf("[重复] 发现重复文件: %s (hash: %s)", result.filePath, result.hash)
+			} else {
+				// 其他错误（数据库错误、IO错误等），记录但不删除
+				log.Printf("[错误] 写入数据库失败: %s - %v", result.filePath, err)
+			}
 		} else {
 			log.Printf("[新增] 已记录: %s (hash: %s)", result.filePath, result.hash)
 		}
