@@ -93,10 +93,20 @@ func Duplicate(root string) {
 		return
 	}
 
-	// 步骤4: 用户确认后执行删除
-	fmt.Println("\n⚠️  警告：即将永久删除以下重复文件！")
+	// 步骤4: 保存待删除文件列表到文本文件
+	listFile := "files_to_delete.txt"
+	err = saveFilesToList(filesToDelete, listFile)
+	if err != nil {
+		log.Printf("[错误] 保存文件列表失败: %v", err)
+		fmt.Printf("\n⚠️  警告：保存文件列表失败\n")
+		return
+	}
+
+	fmt.Printf("\n⚠️  警告：即将永久删除以下重复文件！\n")
 	fmt.Printf("共 %d 个文件将被删除\n", len(filesToDelete))
-	fmt.Print("是否继续？(yes/no): ")
+	fmt.Printf("📄 待删除文件列表已保存到: %s\n", listFile)
+	fmt.Println("请查看该文件，确认无误后继续...")
+	fmt.Print("是否继续删除？(yes/no): ")
 
 	var confirm string
 	fmt.Scanln(&confirm)
@@ -282,4 +292,46 @@ func deleteFiles(files []string) {
 	}
 
 	log.Printf("✓ 删除完成: 成功 %d 个, 失败 %d 个", deletedCount, failedCount)
+}
+
+// saveFilesToList 将待删除文件列表保存到文本文件
+func saveFilesToList(files []string, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("创建文件失败: %w", err)
+	}
+	defer file.Close()
+
+	// 写入文件头信息
+	_, err = fmt.Fprintf(file, "# 待删除的重复文件列表\n")
+	if err != nil {
+		return fmt.Errorf("写入文件头失败: %w", err)
+	}
+	_, err = fmt.Fprintf(file, "# 总数: %d 个文件\n", len(files))
+	if err != nil {
+		return fmt.Errorf("写入统计信息失败: %w", err)
+	}
+	_, err = fmt.Fprintf(file, "# 生成时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	if err != nil {
+		return fmt.Errorf("写入时间戳失败: %w", err)
+	}
+	_, err = fmt.Fprintf(file, "# \n# 警告：这些文件将在确认后永久删除！\n")
+	if err != nil {
+		return fmt.Errorf("写入警告信息失败: %w", err)
+	}
+	_, err = fmt.Fprintf(file, "# ================================\n\n")
+	if err != nil {
+		return fmt.Errorf("写入分隔线失败: %w", err)
+	}
+
+	// 逐行写入文件路径
+	for i, fp := range files {
+		_, err = fmt.Fprintf(file, "%d. %s\n", i+1, fp)
+		if err != nil {
+			return fmt.Errorf("写入文件路径失败: %w", err)
+		}
+	}
+
+	log.Printf("✓ 文件列表已保存到: %s", filename)
+	return nil
 }
