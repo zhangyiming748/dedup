@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -71,6 +72,18 @@ func Duplicate(root string, real bool) {
 
 	if real {
 		// 真实模式：线性处理，避免幻读和竞态条件
+		fmt.Println("\n⚠️  警告：即将进入真实模式，将永久删除重复文件！")
+		fmt.Println("建议先不加 -r 参数试运行，确认无误后再执行。")
+		fmt.Print("是否继续？(yes/no): ")
+
+		var confirm string
+		fmt.Scanln(&confirm)
+		if confirm != "yes" && confirm != "y" {
+			fmt.Println("已取消操作")
+			log.Printf("[取消] 用户取消了真实模式操作")
+			return
+		}
+
 		processFilesSequential(sizeGroups, bar)
 	} else {
 		// 试运行模式：并行处理，提升性能
@@ -140,10 +153,28 @@ func groupFilesBySize(fps []string) (map[int64][]string, int) {
 
 // processFilesSequential 线性处理文件（真实模式）
 func processFilesSequential(sizeGroups map[int64][]string, bar *progressbar.ProgressBar) {
-	// 将 map 转换为切片，便于遍历
+	// 将 map 转换为切片，并按大小排序以确保一致性
+	type sizeGroup struct {
+		size  int64
+		files []string
+	}
+
+	var groups []sizeGroup
+	for size, files := range sizeGroups {
+		groups = append(groups, sizeGroup{size: size, files: files})
+	}
+
+	// 按文件大小排序（从小到大），确保每次运行顺序一致
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].size < groups[j].size
+	})
+
+	// 展平为文件列表
 	var allFiles []string
-	for _, files := range sizeGroups {
-		allFiles = append(allFiles, files...)
+	for _, group := range groups {
+		// 每个组内的文件也按路径排序
+		sort.Strings(group.files)
+		allFiles = append(allFiles, group.files...)
 	}
 
 	processed := 0
