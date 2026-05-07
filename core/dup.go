@@ -5,7 +5,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"dedup/sqlite"
@@ -53,65 +55,14 @@ func Duplicate(root string, real bool) {
 	log.Printf("✓ 扫描完成，找到 %d 个文件", len(fps))
 
 	bar := progressbar.New(len(fps))
-	for i, fp := range fps {
-		log.Printf("[%d/%d] 处理文件: %s", i+1, len(fps), fp)
-
-		// 计算文件哈希值（使用 XXH3）
-		hash, err := calculateXXH3(fp)
-		if err != nil {
-			log.Printf("[错误] 计算哈希失败: %s - %v", fp, err)
-			bar.Add(1)
-			continue
-		}
-
-		// 获取文件大小
-		fileInfo, err := os.Stat(fp)
-		if err != nil {
-			log.Printf("[错误] 获取文件信息失败: %s - %v", fp, err)
-			bar.Add(1)
-			continue
-		}
-		fileSize := fileInfo.Size()
-
-		if real {
-			// 真实模式：检查是否重复，如果重复则删除
-			isDuplicate, originalPath, err := sqlite.CheckAndAdd(hash, fp, fileSize)
-			if err != nil {
-				log.Printf("[错误] 数据库操作失败: %s - %v", fp, err)
-				bar.Add(1)
-				continue
-			}
-
-			if isDuplicate {
-				// 发现重复文件，删除当前文件
-				err := os.Remove(fp)
-				if err != nil {
-					log.Printf("[错误] 删除文件失败: %s - %v", fp, err)
-				} else {
-					log.Printf("[删除] 重复文件: %s (原件: %s)", fp, originalPath)
-				}
-			} else {
-				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
-			}
-		} else {
-			// 试运行模式：检查是否重复，但不删除，只给出提示
-			isDuplicate, originalPath, err := sqlite.CheckAndAdd(hash, fp, fileSize)
-			if err != nil {
-				log.Printf("[错误] 数据库操作失败: %s - %v", fp, err)
-				bar.Add(1)
-				continue
-			}
-
-			if isDuplicate {
-				// 发现重复文件，但不删除，只记录日志
-				log.Printf("[重复] 发现重复文件: %s (原件: %s)", fp, originalPath)
-			} else {
-				log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
-			}
-		}
-
-		bar.Add(1)
+	if real {
+		// 真实模式：线性处理，避免幻读和竞态条件
+		processFilesSequential(fps, bar)
+	} else {
+		// 试运行模式：并行处理，提升性能
+		processFilesParallel(fps, bar)
 	}
+
 	bar.Finish()
 
 	// 显示统计信息
@@ -140,4 +91,146 @@ func calculateXXH3(filePath string) (string, error) {
 	// XXH3 返回 uint64，转换为字符串
 	hashValue := hash.Sum64()
 	return strconv.FormatUint(hashValue, 10), nil
+}
+
+// processFilesSequential 线性处理文件（真实模式）
+func processFilesSequential(fps []string, bar *progressbar.ProgressBar) {
+	for i, fp := range fps {
+		log.Printf("[%d/%d] 处理文件: %s", i+1, len(fps), fp)
+
+		// 计算文件哈希值
+		hash, err := calculateXXH3(fp)
+		if err != nil {
+			log.Printf("[错误] 计算哈希失败: %s - %v", fp, err)
+			bar.Add(1)
+			continue
+		}
+
+		// 获取文件大小
+		fileInfo, err := os.Stat(fp)
+		if err != nil {
+			log.Printf("[错误] 获取文件信息失败: %s - %v", fp, err)
+			bar.Add(1)
+			continue
+		}
+		fileSize := fileInfo.Size()
+
+		// 检查是否重复，如果重复则删除
+		isDuplicate, originalPath, err := sqlite.CheckAndAdd(hash, fp, fileSize)
+		if err != nil {
+			log.Printf("[错误] 数据库操作失败: %s - %v", fp, err)
+			bar.Add(1)
+			continue
+		}
+
+		if isDuplicate {
+			// 发现重复文件，删除当前文件
+			err := os.Remove(fp)
+			if err != nil {
+				log.Printf("[错误] 删除文件失败: %s - %v", fp, err)
+			} else {
+				log.Printf("[删除] 重复文件: %s (原件: %s)", fp, originalPath)
+			}
+		} else {
+			log.Printf("[新增] 已记录: %s (hash: %s)", fp, hash)
+		}
+
+		bar.Add(1)
+	}
+}
+
+// fileResult 文件处理结果
+type fileResult struct {
+	filePath string
+	hash     string
+	fileSize int64
+	err      error
+}
+
+// processFilesParallel 并行处理文件（试运行模式）
+func processFilesParallel(fps []string, bar *progressbar.ProgressBar) {
+	// 根据 CPU 核心数确定 worker 数量，最多 8 个
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 8 {
+		numWorkers = 8
+	}
+
+	log.Printf("[并行模式] 启动 %d 个 worker 进行并行哈希计算", numWorkers)
+
+	// 创建任务 channel 和结果 channel
+	tasks := make(chan string, numWorkers*2)
+	results := make(chan fileResult, numWorkers*2)
+
+	// 启动 worker pool
+	var wg sync.WaitGroup
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for fp := range tasks {
+				// 计算哈希
+				hash, err := calculateXXH3(fp)
+				if err != nil {
+					results <- fileResult{filePath: fp, err: err}
+					continue
+				}
+
+				// 获取文件大小
+				fileInfo, err := os.Stat(fp)
+				if err != nil {
+					results <- fileResult{filePath: fp, err: err}
+					continue
+				}
+
+				results <- fileResult{
+					filePath: fp,
+					hash:     hash,
+					fileSize: fileInfo.Size(),
+				}
+			}
+		}(w)
+	}
+
+	// 启动 goroutine 发送任务
+	go func() {
+		for _, fp := range fps {
+			tasks <- fp
+		}
+		close(tasks)
+	}()
+
+	// 启动 goroutine 等待所有 worker 完成并关闭结果 channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// 主线程收集结果并写入数据库
+	processed := 0
+	for result := range results {
+		processed++
+		log.Printf("[%d/%d] 处理文件: %s", processed, len(fps), result.filePath)
+
+		if result.err != nil {
+			log.Printf("[错误] 处理失败: %s - %v", result.filePath, result.err)
+			bar.Add(1)
+			continue
+		}
+
+		// 检查是否重复（不删除，只提示）
+		isDuplicate, originalPath, err := sqlite.CheckAndAdd(result.hash, result.filePath, result.fileSize)
+		if err != nil {
+			log.Printf("[错误] 数据库操作失败: %s - %v", result.filePath, err)
+			bar.Add(1)
+			continue
+		}
+
+		if isDuplicate {
+			log.Printf("[重复] 发现重复文件: %s (原件: %s)", result.filePath, originalPath)
+		} else {
+			log.Printf("[新增] 已记录: %s (hash: %s)", result.filePath, result.hash)
+		}
+
+		bar.Add(1)
+	}
 }
