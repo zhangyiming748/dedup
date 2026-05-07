@@ -14,7 +14,7 @@ import (
 
 var (
 	rootDir string
-	dryRun  bool
+	real    bool
 )
 
 var rootCmd = &cobra.Command{
@@ -27,7 +27,7 @@ var rootCmd = &cobra.Command{
 		log.Printf("[命令执行] 开始解析命令参数")
 		log.Printf("  原始参数: %v", os.Args)
 		log.Printf("  rootDir 参数值: '%s'", rootDir)
-		log.Printf("  dryRun 参数值: %v", dryRun)
+		log.Printf(" real 参数值: %v", real)
 
 		// 如果没有提供 -d 参数, 显示帮助信息
 		if rootDir == "" {
@@ -37,13 +37,13 @@ var rootCmd = &cobra.Command{
 
 		log.Printf("[验证] 参数验证通过")
 		log.Printf("  目标目录: %s", rootDir)
-		log.Printf("  运行模式: %s", map[bool]string{true: "试运行 (不删除)", false: "正式运行 (会删除)"}[dryRun])
+		log.Printf("  运行模式: %s", map[bool]string{true: "真实模式 (会删除)", false: "试运行 (不删除)"}[real])
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Printf("[执行] 开始执行去重任务...")
 		log.Printf("========================================")
-		core.Duplicate(rootDir, dryRun)
+		core.Duplicate(rootDir, real)
 		log.Printf("========================================")
 		log.Printf("[完成] 去重任务执行完毕")
 	},
@@ -59,10 +59,10 @@ func init() {
 
 	// 添加命令行标志
 	rootCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
-	rootCmd.Flags().BoolVarP(&dryRun, "real", "r", false, "试运行模式, 只打印不删除")
+	rootCmd.Flags().BoolVarP(&real, "real", "r", false, "真实模式，会删除重复文件")
 	log.Printf("[初始化] 命令行参数注册完成")
 	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径, 默认: (空)")
-	log.Printf("  - test (短参数: -t): 试运行模式, 默认: false")
+	log.Printf("  - real (短参数: -r): 真实模式，会删除重复文件, 默认: false")
 }
 
 func main() {
