@@ -15,7 +15,7 @@ import (
 	"github.com/zhangyiming748/finder"
 )
 
-func Duplicate(root string, dryrun bool) {
+func Duplicate(root string,real bool) {
 	// 初始化 SQLite
 	sqlite.SetSqlite()
 
