@@ -1,0 +1,10 @@
+.DS_Store
+.idea
+.vscode
+.lingma
+dedup.exe
+dedup
+*.log
+
+# Redis 数据目录（持久化文件）
+redis-data/
