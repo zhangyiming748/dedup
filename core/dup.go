@@ -262,11 +262,12 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 
 			if isUniqueConstraint {
 				// 唯一索引冲突，说明是重复文件，立即删除
+				log.Printf("[检测到重复] %s", result.filePath)
 				delErr := os.Remove(result.filePath)
 				if delErr != nil {
-					log.Printf("[错误] 删除重复文件失败: %s - %v", result.filePath, delErr)
+					log.Printf("  ❌ [删除失败] %s - 错误: %v", result.filePath, delErr)
 				} else {
-					log.Printf("[删除] 重复文件: %s (hash: %s)", result.filePath, result.hash)
+					log.Printf("  ✅ [删除成功] %s", result.filePath)
 
 					// 记录到 deleted.txt
 					fileMutex.Lock()
@@ -276,18 +277,22 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 				}
 			} else {
 				// 其他错误（数据库错误、IO错误等），记录但不删除
-				log.Printf("[错误] 写入数据库失败: %s - %v", result.filePath, err)
+				log.Printf("  ⚠️  [写入失败] %s - 错误: %v (未删除)", result.filePath, err)
 			}
 		} else {
-			log.Printf("[新增] 已记录: %s (hash: %s)", result.filePath, result.hash)
+			log.Printf("[新增记录] %s", result.filePath)
 		}
 	}
 
 	// 输出统计信息
+	fmt.Println()
 	if deletedCount > 0 {
-		log.Printf("✓ 共删除 %d 个重复文件，列表已保存到: deleted.txt", deletedCount)
+		log.Printf("========== 删除统计 ==========")
+		log.Printf("✅ 成功删除: %d 个文件", deletedCount)
+		log.Printf("📄 删除列表已保存到: deleted.txt")
 	} else {
-		log.Printf("✓ 未发现重复文件")
+		log.Printf("========== 检查结果 ==========")
+		log.Printf("✅ 未发现重复文件")
 	}
 }
 
@@ -358,7 +363,7 @@ func saveFilesToList(files []string, filename string) error {
 // cleanupDatabase 清理数据库文件，避免二次运行误删
 func cleanupDatabase() {
 	dbPath := "duplicate.db"
-	
+
 	// 关闭数据库连接
 	db := sqlite.GetSqlite()
 	if db != nil {
@@ -368,7 +373,7 @@ func cleanupDatabase() {
 			log.Printf("[清理] 数据库连接已关闭")
 		}
 	}
-	
+
 	// 删除数据库文件
 	err := os.Remove(dbPath)
 	if err != nil {
@@ -380,7 +385,7 @@ func cleanupDatabase() {
 	} else {
 		log.Printf("[清理] 数据库文件已删除: %s", dbPath)
 	}
-	
+
 	// 同时删除 WAL 和 SHM 文件（SQLite 可能生成）
 	for _, ext := range []string{"-wal", "-shm"} {
 		walPath := dbPath + ext
