@@ -2,12 +2,12 @@ package core
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +16,6 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"github.com/zeebo/xxh3"
 	"github.com/zhangyiming748/finder"
-	"gorm.io/gorm"
 )
 
 func Duplicate(root string) {
@@ -76,9 +75,9 @@ func Duplicate(root string) {
 
 	bar := progressbar.New(totalHashFiles)
 
-	// 步骤3: 对相同大小的文件计算哈希并写入 SQLite
+	// 步骤3: 对相同大小的文件计算哈希并写入 SQLite（发现重复立即删除）
 	fmt.Println("\n正在计算哈希并检测重复...")
-	filesToDelete := processFilesWithUniqueIndex(sizeGroups, bar)
+	processFilesWithUniqueIndex(sizeGroups, bar)
 
 	bar.Finish()
 
@@ -87,39 +86,6 @@ func Duplicate(root string) {
 	if err == nil {
 		log.Printf("✓ 数据库中共有 %d 个唯一文件记录", total)
 	}
-
-	log.Printf("✓ 发现 %d 个重复文件待删除", len(filesToDelete))
-
-	if len(filesToDelete) == 0 {
-		log.Printf("========== 没有发现重复文件 ==========")
-		return
-	}
-
-	// 步骤4: 保存待删除文件列表到文本文件
-	listFile := "files_to_delete.txt"
-	err = saveFilesToList(filesToDelete, listFile)
-	if err != nil {
-		log.Printf("[错误] 保存文件列表失败: %v", err)
-		fmt.Printf("\n⚠️  警告：保存文件列表失败\n")
-		return
-	}
-
-	fmt.Printf("\n⚠️  警告：即将永久删除以下重复文件！\n")
-	fmt.Printf("共 %d 个文件将被删除\n", len(filesToDelete))
-	fmt.Printf("📄 待删除文件列表已保存到: %s\n", listFile)
-	fmt.Println("请查看该文件，确认无误后继续...")
-	fmt.Print("是否继续删除？(yes/no): ")
-
-	var confirm string
-	fmt.Scanln(&confirm)
-	if confirm != "yes" && confirm != "y" {
-		fmt.Println("已取消操作")
-		log.Printf("[取消] 用户取消了删除操作")
-		return
-	}
-
-	// 步骤5: 执行删除
-	deleteFiles(filesToDelete)
 
 	log.Printf("========== 去重任务完成 ==========")
 }
@@ -184,10 +150,30 @@ type fileResult struct {
 }
 
 // processFilesWithUniqueIndex 处理文件并利用唯一索引检测重复
-// 返回待删除的文件列表
-func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar.ProgressBar) []string {
-	var filesToDelete []string
+// 发现重复文件立即删除
+func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar.ProgressBar) {
+	// 以追加模式打开删除记录文件
+	deletedFile, err := os.OpenFile("deleted.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("[错误] 创建/打开删除记录文件失败: %v", err)
+		return
+	}
+	defer deletedFile.Close()
 
+	// 如果文件是新建的，写入文件头
+	fileInfo, err := deletedFile.Stat()
+	if err == nil && fileInfo.Size() == 0 {
+		fmt.Fprintf(deletedFile, "# 已删除的重复文件列表\n")
+		fmt.Fprintf(deletedFile, "# 警告：这些文件已被永久删除！\n")
+		fmt.Fprintf(deletedFile, "# ========================================\n\n")
+	}
+
+	// 写入本次运行的时间戳分隔线
+	fmt.Fprintf(deletedFile, "\n## 运行时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+
+	// 用于同步写入文件
+	var fileMutex sync.Mutex
+	deletedCount := 0
 	// 将 map 转换为切片，便于处理
 	var allFiles []string
 	for _, files := range sizeGroups {
@@ -261,14 +247,25 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 			continue
 		}
 
-		// 尝试写入数据库，如果哈希已存在（唯一索引冲突），则标记为重复
+		// 尝试写入数据库，如果哈希已存在（唯一索引冲突），则立即删除
 		err := sqlite.AddFile(result.hash, result.filePath, result.fileSize)
 		if err != nil {
-			// 精确判断错误类型：只有唯一索引冲突才是重复文件
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				// 唯一索引冲突，说明是重复文件，加入待删除列表
-				filesToDelete = append(filesToDelete, result.filePath)
-				log.Printf("[重复] 发现重复文件: %s (hash: %s)", result.filePath, result.hash)
+			// 判断是否为唯一索引冲突（重复文件）
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "UNIQUE constraint") || strings.Contains(errMsg, "constraint failed") {
+				// 唯一索引冲突，说明是重复文件，立即删除
+				delErr := os.Remove(result.filePath)
+				if delErr != nil {
+					log.Printf("[错误] 删除重复文件失败: %s - %v", result.filePath, delErr)
+				} else {
+					log.Printf("[删除] 重复文件: %s (hash: %s)", result.filePath, result.hash)
+
+					// 记录到 deleted.txt
+					fileMutex.Lock()
+					deletedCount++
+					fmt.Fprintf(deletedFile, "%d. %s\n", deletedCount, result.filePath)
+					fileMutex.Unlock()
+				}
 			} else {
 				// 其他错误（数据库错误、IO错误等），记录但不删除
 				log.Printf("[错误] 写入数据库失败: %s - %v", result.filePath, err)
@@ -278,7 +275,12 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 		}
 	}
 
-	return filesToDelete
+	// 输出统计信息
+	if deletedCount > 0 {
+		log.Printf("✓ 共删除 %d 个重复文件，列表已保存到: deleted.txt", deletedCount)
+	} else {
+		log.Printf("✓ 未发现重复文件")
+	}
 }
 
 // deleteFiles 批量删除文件
