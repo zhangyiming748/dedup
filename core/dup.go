@@ -252,7 +252,12 @@ func processFilesWithUniqueIndex(sizeGroups map[int64][]string, bar *progressbar
 		if err != nil {
 			// 判断是否为唯一索引冲突（重复文件）
 			errMsg := err.Error()
-			if strings.Contains(errMsg, "UNIQUE constraint") || strings.Contains(errMsg, "constraint failed") {
+			// SQLite 唯一约束错误的典型特征
+			isUniqueConstraint := strings.Contains(errMsg, "UNIQUE constraint") ||
+				strings.Contains(errMsg, "UNIQUE constraint failed") ||
+				(strings.Contains(errMsg, "constraint failed") && strings.Contains(errMsg, "file_hashes.hash"))
+
+			if isUniqueConstraint {
 				// 唯一索引冲突，说明是重复文件，立即删除
 				delErr := os.Remove(result.filePath)
 				if delErr != nil {
