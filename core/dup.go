@@ -88,6 +88,9 @@ func Duplicate(root string) {
 	}
 
 	log.Printf("========== 去重任务完成 ==========")
+
+	// 清理：删除数据库文件，避免二次运行误删
+	cleanupDatabase()
 }
 
 // calculateXXH3 使用 XXH3 128-bit 算法计算文件哈希
@@ -350,4 +353,39 @@ func saveFilesToList(files []string, filename string) error {
 
 	log.Printf("✓ 文件列表已保存到: %s", filename)
 	return nil
+}
+
+// cleanupDatabase 清理数据库文件，避免二次运行误删
+func cleanupDatabase() {
+	dbPath := "duplicate.db"
+	
+	// 关闭数据库连接
+	db := sqlite.GetSqlite()
+	if db != nil {
+		sqlDB, err := db.DB()
+		if err == nil {
+			sqlDB.Close()
+			log.Printf("[清理] 数据库连接已关闭")
+		}
+	}
+	
+	// 删除数据库文件
+	err := os.Remove(dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("[清理] 数据库文件不存在: %s", dbPath)
+		} else {
+			log.Printf("[警告] 删除数据库文件失败: %s - %v", dbPath, err)
+		}
+	} else {
+		log.Printf("[清理] 数据库文件已删除: %s", dbPath)
+	}
+	
+	// 同时删除 WAL 和 SHM 文件（SQLite 可能生成）
+	for _, ext := range []string{"-wal", "-shm"} {
+		walPath := dbPath + ext
+		if err := os.Remove(walPath); err == nil {
+			log.Printf("[清理] 已删除: %s", walPath)
+		}
+	}
 }
