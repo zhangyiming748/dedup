@@ -3,10 +3,9 @@ module dedup
 go 1.26.2
 
 require (
-	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/glebarez/sqlite v1.11.0
-	github.com/zhangyiming748/finder v0.0.10
 	github.com/zeebo/xxh3 v1.1.0
+	github.com/zhangyiming748/finder v0.0.10
 	gorm.io/gorm v1.31.1
 )
 
@@ -16,6 +15,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
