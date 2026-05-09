@@ -8,6 +8,7 @@ import (
 )
 
 var gormDB *gorm.DB
+
 // https://www.sqlite.org/download.html
 func SetSqlite() {
 	// home, err := os.UserHomeDir()
