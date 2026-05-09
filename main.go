@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"dedup/core"
@@ -58,7 +59,12 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	// 设置日志
-	util.SetLog("dedup.log")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("创建本地sqlite数据库目录失败:%s", err.Error())
+	}
+	location := filepath.Join(home, "dedup.log")
+	util.SetLog(location)
 	sqlite.SetSqlite()
 	log.Printf("[初始化] SQLite 数据库已启动")
 	log.Printf("[初始化] 日志系统已启动, 日志文件: dedup.log")
