@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 
 	"dedup/core"
 	"dedup/sqlite"
@@ -16,12 +17,20 @@ var (
 	rootDir string
 )
 
+// 版本信息（通过 -ldflags 在编译时注入）
+var (
+	Version   = "dev"     // 版本号，如 v1.0.0
+	BuildTime = "unknown" // 编译时间
+	GitCommit = "unknown" // Git commit hash
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "dedup",
 	Short: "查找并删除重复文件",
 	Long: `dedup 是一个用于查找和删除重复文件的命令行工具.
-它会扫描指定目录下的所有文件, 通过计算 MD5 哈希值来识别重复文件,
-并可以选择性地删除重复文件.`,
+它会扫描指定目录下的所有文件, 通过计算 XXH3 128-bit 哈希值来识别重复文件,
+并自动删除重复文件（保留一份）。`,
+	Version: Version,
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		log.Printf("[命令执行] 开始解析命令参数")
 		log.Printf("  原始参数: %v", os.Args)
@@ -56,8 +65,23 @@ func init() {
 
 	// 添加命令行标志
 	rootCmd.Flags().StringVarP(&rootDir, "dir", "d", "", "要扫描的根目录路径")
+	rootCmd.Version = Version // 设置版本信息
 	log.Printf("[初始化] 命令行参数注册完成")
 	log.Printf("  - dir (短参数: -d): 要扫描的根目录路径, 默认: (空)")
+
+	// 添加详细版本命令
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "显示详细版本信息",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("dedup version %s\n", Version)
+			fmt.Printf("Build time: %s\n", BuildTime)
+			fmt.Printf("Git commit: %s\n", GitCommit)
+			fmt.Printf("Go version: %s\n", runtime.Version())
+			fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		},
+	}
+	rootCmd.AddCommand(versionCmd)
 }
 
 func main() {
